@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -21,6 +21,9 @@ Funding = "https://ko-fi.com/nexy7574"
 [project.scripts]
 dendritecli = "dendritecli.main:main"
 dendrite-cli = "dendritecli.main:main"
+
+[tool.setuptools_scm]
+version_file = "dendritecli/_version.py"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
