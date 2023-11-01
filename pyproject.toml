@@ -23,7 +23,7 @@ dendritecli = "dendritecli.main:main"
 dendrite-cli = "dendritecli.main:main"
 
 [tool.setuptools_scm]
-version_file = "dendritecli/_version.py"
+version_file = "src/dendritecli/_version.py"
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
