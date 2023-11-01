@@ -1,0 +1,4 @@
+click>=8.1.7
+rich>=13.6.0
+httpx[http2,brotli]>=0.25.0
+toml>=0.10.2
