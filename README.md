@@ -34,7 +34,7 @@ manager = HTTPAPIManager(
 )
 ```
 
-## Configuration File {#configuration-file}
+## Configuration File
 You can configure dendritecli with a configuration file. The default location is `$HOME/.config/dendritecli.toml`,
 or if `$HOME/.config` does not exist, `$HOME/.dendritecli.toml`.
 
