@@ -7,7 +7,7 @@ name = "dendritecli"
 description = "Manage the Dendrite API from your command line!"
 readme = {file = "README.md", content-type = "text/markdown"}
 requires-python = ">=3.10"
-license = { text = "GNU GPLv3" }
+license = { file = "LICENSE" }
 authors = [
     {name = "Nexus", email = "packages@nexy7574.co.uk"}
 ]
