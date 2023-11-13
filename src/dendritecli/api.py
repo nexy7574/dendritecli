@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import importlib.metadata
 import logging
+import secrets
 import sys
 import typing
 from pathlib import Path
@@ -113,7 +114,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Evacuating room %s", room_id)
-        response = self.client.post(f"/_dendrite/admin/evacuate_room/{room_id}")
+        response = self.client.post(f"/_dendrite/admin/evacuateRoom/{room_id}", timeout=None)
         log.info("Finished evacuating room %s", room_id)
         response.raise_for_status()
         return response.json()
@@ -130,7 +131,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Evacuating user %s", user_id)
-        response = self.client.post(f"/_dendrite/admin/evacuate_user/{user_id}")
+        response = self.client.post(f"/_dendrite/admin/evacuateUser/{user_id}", timeout=None)
         log.info("Finished evacuating user %s", user_id)
         response.raise_for_status()
         return response.json()
@@ -158,9 +159,9 @@ class HTTPAPIManager:
 
         log.info("Resetting password for user %s", user_id)
         response = self.client.post(
-            f"/_dendrite/admin/reset_password/{user_id}",
+            f"/_dendrite/admin/resetPassword/{user_id}",
             json={
-                "new_password": new_password,
+                "password": new_password,
                 "logout_devices": logout_devices,
             },
         )
@@ -182,7 +183,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Requesting dendrite to reindex events")
-        response = self.client.post("/_dendrite/admin/reindex_events")
+        response = self.client.post("/_dendrite/admin/fulltext/reindex")
         response.raise_for_status()
         return response.json() or None
 
@@ -199,7 +200,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Requesting dendrite to refresh devices for user %s", user_id)
-        response = self.client.post(f"/_dendrite/admin/refresh_devices/{user_id}")
+        response = self.client.post(f"/_dendrite/admin/refreshDevices/{user_id}")
         response.raise_for_status()
         return response.json()
 
@@ -215,7 +216,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Requesting dendrite to purge room %s", room_id)
-        response = self.client.post(f"/_dendrite/admin/purge_room/{room_id}")
+        response = self.client.post(f"/_dendrite/admin/purgeRoom/{room_id}")
         log.info("Finished purging room %s", room_id)
         response.raise_for_status()
         return response.json()
@@ -327,3 +328,86 @@ class HTTPAPIManager:
         log.info("Done fetching information about user %s", user_id)
         response.raise_for_status()
         return response.json()
+
+    def deactivate(self, user_id: str) -> None:
+        """
+        Deactivates a user.
+
+        Docs:
+            - None. There isn't an official dendrite API to deactivate a user, so this function does the following:
+                1. Reset the user's password.
+                2. Users the user's new password to get an access token
+                3. Uses the access token to deactivate the user.
+
+            - Please make sure that the user was evacuated beforehand.
+
+        :param user_id: The user ID to deactivate
+        :return: If deactivation was successful
+        :raises: httpx.HTTPError - if a request failed.
+        :raises: RuntimeError - if the password reset failed.
+        """
+        log.info("Deactivating user (step 1): Resetting password for user %s", user_id)
+        random_password = secrets.token_hex(32)
+        log.debug("Selected random password %r for temporary reset.", random_password)
+        response = self.reset_password(user_id, new_password=random_password)
+        if response.get("password_updated") is not True:
+            raise RuntimeError("Failed to reset password.")
+
+        log.info("Deactivating user (step 2): Getting access token for user %s", user_id)
+        response = self.client.post(
+            "/_matrix/client/r0/login",
+            json={
+                "type": "m.login.password",
+                "identifier": {"type": "m.id.user", "user": user_id},
+                "password": random_password,
+                "initial_device_display_name": "dendritecli",
+            },
+        )
+        response.raise_for_status()
+        access_token = response.json()["access_token"]
+        log.debug("Got access token %r for user %r.", access_token, user_id)
+
+        log.info("Beginning \"interactive\" deactivation of %s.", user_id)
+
+        initial_response = self.client.post(
+            "/_matrix/client/r0/account/deactivate",
+            auth=BearerAuth(access_token),
+        )
+        # This should yield HTTP 401 with our expected flow.
+        if initial_response.status_code != 401:
+            log.error("Unexpected response code %r from deactivation endpoint.", initial_response.status_code)
+            raise RuntimeError("Unexpected response code from deactivation endpoint.")
+
+        info = initial_response.json()
+        flows = info["flows"]
+        for flow in flows:
+            if not isinstance(flow, dict):
+                log.debug("Unexpected flow value %r. Skipping.", flow)
+            elif not isinstance(flow.get("stages"), list):
+                log.debug("Unexpected flow stages value %r. Skipping.", flow)
+            else:
+                break
+        else:
+            raise RuntimeError("No supported flows found.")
+        stages = flow["stages"]
+        if stages[0] != "m.login.password":
+            raise RuntimeError("First stage is not m.login.password.")
+        body = {
+            "auth": {
+                "identifier": {"type": "m.id.user", "user": user_id},
+                "password": random_password,
+                "session": info["session"],
+                "type": "m.login.password",
+                "user": user_id,
+            },
+            "erase": True
+        }
+        log.info("Deactivating user (step 3): Deactivating user %s", user_id)
+        response = self.client.post(
+            "/_matrix/client/r0/account/deactivate",
+            auth=BearerAuth(access_token),
+            json=body,
+        )
+        response.raise_for_status()
+        log.info("Done deactivating user %s", user_id)
+        return

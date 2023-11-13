@@ -112,6 +112,7 @@ def user(http: api.HTTPAPIManager, user_id: str):
             console.print(f"[yellow]\t{_room}")
     else:
         console.print("[yellow]No rooms were affected.")
+    return True
 
 
 @main.command(name="reset-password")
@@ -239,3 +240,28 @@ def whois(http: api.HTTPAPIManager, user_id: str):
     with console.status("Fetching user information..."):
         _user = http.whois(user_id)
     console.print(_user)
+
+
+@main.command()
+@click.argument("user_id")
+@click.pass_obj
+def deactivate(http: api.HTTPAPIManager, user_id: str):
+    """
+    Deactivate a user.
+
+    USER_ID should be the fully qualified (@username:domain.tld) user ID to deactivate.
+    """
+    if not Confirm.ask("This will deactivate the user. Are you sure?"):
+        return
+
+    if not Confirm.ask("Have you already evacuated this user?"):
+        if Confirm.ask("Would you like to?"):
+            if not user.callback(user_id):
+                return
+        else:
+            console.print("[yellow]Aborting.")
+            return
+
+    with console.status("Deactivating user..."):
+        http.deactivate(user_id)
+    console.print(f"[green]Deactivated {user_id}.")
