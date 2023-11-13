@@ -235,7 +235,7 @@ class HTTPAPIManager:
         """
         log.info("Requesting dendrite to send a server notice to %s", user_id)
         response = self.client.post(
-            f"/_synapse/admin/v1/send_server_notice", json={"user_id": user_id, "content": message}
+            "/_synapse/admin/v1/send_server_notice", json={"user_id": user_id, "content": message}
         )
         log.info("Finished sending server notice to %s", user_id)
         response.raise_for_status()
@@ -302,9 +302,15 @@ class HTTPAPIManager:
             admin = "admin" if kwargs["admin"] else "notadmin"
             kwargs.setdefault("displayname", kwargs["username"])
             kwargs["admin"] = admin
-            for key, value in kwargs.items():
-                if key != "shared_secret":
-                    mac.update(f"{key}:{value}".encode("utf-8"))
+
+            mac.update(kwargs["nonce"].encode("utf-8"))
+            mac.update(b'\x00')
+            mac.update(kwargs["username"].encode("utf-8"))
+            mac.update(b'\x00')
+            mac.update(kwargs["password"].encode("utf-8"))
+            mac.update(b'\x00')
+            mac.update(b'notadmin' if not kwargs["admin"] else b'admin')
+
             mac = mac.hexdigest()
             log.info("Registering user %s", kwargs["username"])
             response = self.client.post("/_synapse/admin/v1/register", json={**kwargs, "nonce": nonce, "mac": mac})
