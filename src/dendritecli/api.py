@@ -75,6 +75,7 @@ class HTTPAPIManager:
             follow_redirects=True,
             max_redirects=10,
             base_url=self.base_url,
+            app=kwargs.get("debug_app")
         )
 
         self.fulltext_reindex = self.full_text_reindex = self.reindex_events
@@ -228,7 +229,7 @@ class HTTPAPIManager:
 
         Docs: https://matrix-org.github.io/dendrite/administration/adminapi#post-_synapseadminv1send_server_notice
         :param user_id: The user ID to send the notice to.
-        :param message: The message to send.]
+        :param message: The message to send.
         :return: The event's response (usually ``{"event_id": "$event_id"}``)
         :raises: httpx.HTTPError - if the request failed.
         """
