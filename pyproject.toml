@@ -13,6 +13,12 @@ authors = [
 ]
 dynamic = ["version", "dependencies"]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "fastapi>=0.104.1"
+]
+
 [project.urls]
 Source = "https://github.com/nexy7574/dendritecli"
 "Chat" = "https://matrix.to/#/@nex:nexy7574.co.uk"
