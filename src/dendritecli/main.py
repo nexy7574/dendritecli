@@ -1,3 +1,4 @@
+import datetime
 import getpass
 import logging
 import pathlib
@@ -7,6 +8,7 @@ import click
 import rich
 from rich.logging import RichHandler
 from rich.prompt import Confirm, Prompt
+from rich.table import Table
 
 from . import api
 
@@ -30,6 +32,7 @@ console = rich.get_console()
 @click.option(
     "--log-level",
     "-l",
+    "-L",
     default="INFO",
     help="Log level",
     type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
@@ -265,3 +268,95 @@ def deactivate(http: api.HTTPAPIManager, user_id: str):
     with console.status("Deactivating user..."):
         http.deactivate(user_id)
     console.print(f"[green]Deactivated {user_id}.")
+
+
+@main.command(name="list-accounts")
+@click.option(
+    "--database-uri",
+    "--uri",
+    "--database",
+    "-D",
+    help="The database URI to connect to (postgres[ql]:// or sqlite[3]://)",
+    default=None
+)
+@click.pass_obj
+def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
+    """
+    List all accounts registered in the database.
+
+    DATABASE_URI should be the database URI to connect to (postgres:// or sqlite3://).
+    """
+    if database_uri is None:
+        config = http.read_config()
+        database_uri = config.get("database_uri")
+    if database_uri is None:
+        console.print("[yellow]No database URI provided.")
+        database_uri = Prompt.ask("Database URI (postgres:// or sqlite3://)")
+
+    table = Table(
+        "localpart",
+        "display name",
+        "created at",
+        "appservice ID",
+        "is deactivated",
+        "account type",
+        "avatar URL"
+    )
+    sql = api.SQLHandler(database_uri)
+    accounts = list(sql.list_accounts())
+    log.debug("Found accounts: %r", accounts)
+    accounts.sort(key=lambda x: x["created_ts"])
+    for account in accounts:
+        if account["created_ts"] is None:
+            user_created_at = '\u200b'
+        else:
+            user_created_at = datetime.datetime.fromtimestamp(
+                account["created_ts"] / 1000,
+                datetime.timezone.utc
+            ).strftime("%Y-%m-%d %H:%M:%S %Z")
+        deactivated = account["is_deactivated"]
+        table.add_row(
+            account["localpart"],
+            account["display_name"],
+            user_created_at,
+            str(account["appservice_id"] or '\u200b'),
+            "[%s]%s[/]" % ("green" if deactivated else "red", deactivated),
+            str(account["account_type"]),
+            account["avatar_url"] or '\u200b'
+        )
+    console.print(table)
+
+
+@main.command(name="list-rooms")
+@click.option(
+    "--database-uri",
+    "--uri",
+    "--database",
+    "-D",
+    help="The database URI to connect to (postgres[ql]:// or sqlite[3]://)",
+    default=None
+)
+@click.pass_obj
+def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
+    if database_uri is None:
+        config = http.read_config()
+        database_uri = config.get("database_uri")
+    if database_uri is None:
+        console.print("[yellow]No database URI provided.")
+        database_uri = Prompt.ask("Database URI (postgres:// or sqlite3://)")
+
+    table = Table(
+        "Alias",
+        "Room ID",
+        "Version"
+    )
+    sql = api.SQLHandler(database_uri)
+    rooms = list(sql.list_rooms())
+    log.debug("Found rooms: %r", rooms)
+    for _room in rooms:
+        table.add_row(
+            _room["alias"] or '\u200b',
+            _room["room_id"],
+            str(_room["room_version"])
+        )
+    console.print(table)

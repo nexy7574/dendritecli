@@ -7,6 +7,7 @@ import sys
 import typing
 from urllib.parse import quote
 from pathlib import Path
+from ._sql import SQLHandler
 
 import httpx
 import toml
@@ -424,3 +425,13 @@ class HTTPAPIManager:
         response.raise_for_status()
         log.info("Done deactivating user %s", user_id)
         return
+
+    def list_accounts(self, uri: str):
+        """
+        Lists all accounts registered in the database.
+
+        :return: A list of user accounts and their profiles in one dictionary
+        """
+        with SQLHandler(uri) as sql:
+            users = list(sql.list_accounts())
+        return users
