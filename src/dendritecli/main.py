@@ -286,8 +286,8 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
 
     DATABASE_URI should be the database URI to connect to (postgres:// or sqlite3://).
     """
+    config = http.read_config()
     if database_uri is None:
-        config = http.read_config()
         database_uri = config.get("database_uri")
     if database_uri is None:
         console.print("[yellow]No database URI provided.")
@@ -325,6 +325,8 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
             account["avatar_url"] or '\u200b'
         )
     console.print(table)
+    config["database_uri"] = database_uri
+    http.write_config(config)
 
 
 @main.command(name="list-rooms")
@@ -338,8 +340,8 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
 )
 @click.pass_obj
 def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
+    config = http.read_config()
     if database_uri is None:
-        config = http.read_config()
         database_uri = config.get("database_uri")
     if database_uri is None:
         console.print("[yellow]No database URI provided.")
@@ -360,3 +362,5 @@ def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
             str(_room["room_version"])
         )
     console.print(table)
+    config["database_uri"] = database_uri
+    http.write_config(config)
