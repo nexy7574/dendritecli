@@ -16,7 +16,8 @@ dynamic = ["version", "dependencies"]
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.3",
-    "fastapi>=0.104.1"
+    "fastapi>=0.104.1",
+    "pytest-dependency>=0.5.1",
 ]
 
 [project.urls]

@@ -1,9 +1,9 @@
 import secrets
+import json
 
 import fastapi
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-import time
 
 
 class PasswordResetBody(BaseModel):
@@ -16,8 +16,9 @@ app = fastapi.FastAPI(
 )
 app.state.users = {
     "@example:example.local": {
-        "rooms": ["#example:example.local",],
-        "password": "example.password"
+        "rooms": ["!123456789abcdef:example.local",],
+        "password": "example.password",
+        "access_token": "example.access_token",
     }
 }
 app.state.rooms = {
@@ -27,7 +28,7 @@ app.state.rooms = {
 }
 
 
-@app.post("/_test/reset")
+# @app.post("/_test/reset")
 def reset_state():
     app.state.users = {
         "@example:example.local": {
@@ -40,11 +41,12 @@ def reset_state():
             "users": ["@example:example.local", ],
         }
     }
+    print('Reset app state:', app.state.users, app.state.rooms)
 
 
 @app.post("/_dendrite/admin/evacuateRoom/{room_id}")
-def evacuate_room(room_id: str):
-    if room_id not in app.state.rooms:
+async def evacuate_room(room_id: str):
+    if room_id not in app.state.rooms.keys():
         raise fastapi.HTTPException(status_code=404)
 
     affected = []
@@ -56,8 +58,8 @@ def evacuate_room(room_id: str):
 
 
 @app.post("/_dendrite/admin/evacuateUser/{user_id}")
-def evacuate_user(user_id: str):
-    if user_id not in app.state.users:
+async def evacuate_user(user_id: str):
+    if user_id not in app.state.users.keys():
         raise fastapi.HTTPException(status_code=404)
 
     affected = []
@@ -69,7 +71,7 @@ def evacuate_user(user_id: str):
 
 
 @app.post("/_dendrite/admin/resetPassword/{user_id}")
-def reset_password(user_id: str, body: PasswordResetBody):
+async def reset_password(user_id: str, body: PasswordResetBody):
     if user_id not in app.state.users:
         raise fastapi.HTTPException(status_code=404)
 
@@ -78,12 +80,12 @@ def reset_password(user_id: str, body: PasswordResetBody):
 
 
 @app.post("/_dendrite/admin/fulltext/reindex")
-def reindex():
+async def reindex():
     return {}
 
 
 @app.post("/_dendrite/admin/refreshDevices/{user_id}")
-def refresh_devices(user_id: str):
+async def refresh_devices(user_id: str):
     if user_id not in app.state.users:
         raise fastapi.HTTPException(status_code=404)
 
@@ -91,7 +93,7 @@ def refresh_devices(user_id: str):
 
 
 @app.post("/_dendrite/admin/purgeRoom/{room_id}")
-def purge_room(room_id: str):
+async def purge_room(room_id: str):
     if room_id not in app.state.rooms:
         raise fastapi.HTTPException(status_code=404)
 
@@ -111,5 +113,114 @@ async def send_server_notice(req: fastapi.Request):
     return {"event_id": "$" + secrets.token_urlsafe(16)}
 
 
+@app.get('/_synapse/admin/v1/register')
+async def register__get():
+    return {'nonce': 'nonce'}
+
+
 @app.post("/_synapse/admin/v1/register")
-async def register()
+async def register(req: fastapi.Request):
+    body = await req.json()
+    if body.get('nonce') != 'nonce' or body.get('mac') is None:
+        raise fastapi.HTTPException(status_code=400)
+    
+    # Assume, for the purposes of the test, the body is correct.
+    # This is a mock server, after all.
+    app.state.users[body['username']] = {
+        "rooms": [],
+        "password": body['password'],
+        "access_token": "example.access_token." + body['username'],
+    }
+    return {
+        "access_token": "example.access_token." + body['username'],
+        "home_server": "example.local",
+        "user_id": body['username'],
+        "device_id": "example.device_id." + body['username'],
+    }
+
+
+@app.get("/_matrix/client/v3/admin/whois/{user_id}")
+async def whois(user_id: str):
+    if user_id not in app.state.users:
+        raise fastapi.HTTPException(status_code=404)
+    return {
+        "devices": [],
+        "user_id": user_id,
+    }
+
+
+@app.post('/_matrix/client/v3/login')
+async def login(req: fastapi.Request):
+    body = await req.json()
+    if body['type'] != 'm.login.password':
+        raise fastapi.HTTPException(status_code=400)
+    if body['identifier']['type'] != 'm.id.user':
+        raise fastapi.HTTPException(status_code=400)
+    if body['identifier']['user'] not in app.state.users:
+        raise fastapi.HTTPException(status_code=400)
+    if body['password'] != app.state.users[body['identifier']['user']]['password']:
+        raise fastapi.HTTPException(status_code=400)
+    return {
+        "access_token": app.state.users[body['identifier']['user']]['access_token'],
+        "home_server": "example.local",
+        "user_id": body['identifier']['user'],
+        "device_id": "example.device_id." + body['identifier']['user'],
+    }
+
+
+@app.post('/_matrix/client/v3/account/deactivate')
+async def account_deactivate(req: fastapi.Request):
+    try:
+        body = await req.json()
+    except json.JSONDecodeError:
+        return JSONResponse(
+            {
+                'flows': [
+                    {
+                        'stages': ['m.login.password'],
+                    }
+                ],
+                'session': 'session_id'
+            },
+            401
+        )
+
+    if not body.get('auth'):
+        return JSONResponse(
+            {
+                'flows': [
+                    {
+                        'stages': ['m.login.password'],
+                    }
+                ],
+                'session': 'session_id'
+            },
+            401
+        )
+
+    if body['auth'].get('session') != 'session_id':
+        return JSONResponse(
+            {
+                'flows': [
+                    {
+                        'stages': ['m.login.password'],
+                    }
+                ],
+                'session': 'session_id'
+            },
+            401
+        )
+
+    if body['auth'].get('type') != 'm.login.password':
+        return JSONResponse(
+            {
+                'flows': [
+                    {
+                        'stages': ['m.login.password'],
+                    }
+                ],
+                'session': 'session_id'
+            },
+            401
+        )
+    return {}

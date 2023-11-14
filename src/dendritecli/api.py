@@ -5,6 +5,7 @@ import logging
 import secrets
 import sys
 import typing
+from urllib.parse import quote
 from pathlib import Path
 
 import httpx
@@ -74,8 +75,7 @@ class HTTPAPIManager:
             timeout=kwargs.pop("timeout", httpx.Timeout(connect=10, read=180, write=60, pool=10)),
             follow_redirects=True,
             max_redirects=10,
-            base_url=self.base_url,
-            app=kwargs.get("debug_app")
+            base_url=self.base_url
         )
 
         self.fulltext_reindex = self.full_text_reindex = self.reindex_events
@@ -115,6 +115,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Evacuating room %s", room_id)
+        room_id = quote(room_id)
         response = self.client.post(f"/_dendrite/admin/evacuateRoom/{room_id}", timeout=None)
         log.info("Finished evacuating room %s", room_id)
         response.raise_for_status()
@@ -132,6 +133,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Evacuating user %s", user_id)
+        user_id = quote(user_id)
         response = self.client.post(f"/_dendrite/admin/evacuateUser/{user_id}", timeout=None)
         log.info("Finished evacuating user %s", user_id)
         response.raise_for_status()
@@ -201,6 +203,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Requesting dendrite to refresh devices for user %s", user_id)
+        user_id = quote(user_id)
         response = self.client.post(f"/_dendrite/admin/refreshDevices/{user_id}")
         response.raise_for_status()
         return response.json()
@@ -217,6 +220,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Requesting dendrite to purge room %s", room_id)
+        room_id = quote(room_id)
         response = self.client.post(f"/_dendrite/admin/purgeRoom/{room_id}")
         log.info("Finished purging room %s", room_id)
         response.raise_for_status()
@@ -302,6 +306,7 @@ class HTTPAPIManager:
             admin = "admin" if kwargs["admin"] else "notadmin"
             kwargs.setdefault("displayname", kwargs["username"])
             kwargs["admin"] = admin
+            kwargs['nonce'] = nonce
 
             mac.update(kwargs["nonce"].encode("utf-8"))
             mac.update(b'\x00')
@@ -331,6 +336,7 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Fetching information about user %s", user_id)
+        user_id = quote(user_id)
         response = self.client.get(f"/_matrix/client/v3/admin/whois/{user_id}")
         log.info("Done fetching information about user %s", user_id)
         response.raise_for_status()
@@ -362,7 +368,7 @@ class HTTPAPIManager:
 
         log.info("Deactivating user (step 2): Getting access token for user %s", user_id)
         response = self.client.post(
-            "/_matrix/client/r0/login",
+            "/_matrix/client/v3/login",
             json={
                 "type": "m.login.password",
                 "identifier": {"type": "m.id.user", "user": user_id},
@@ -377,7 +383,7 @@ class HTTPAPIManager:
         log.info("Beginning \"interactive\" deactivation of %s.", user_id)
 
         initial_response = self.client.post(
-            "/_matrix/client/r0/account/deactivate",
+            "/_matrix/client/v3/account/deactivate",
             auth=BearerAuth(access_token),
         )
         # This should yield HTTP 401 with our expected flow.
@@ -411,7 +417,7 @@ class HTTPAPIManager:
         }
         log.info("Deactivating user (step 3): Deactivating user %s", user_id)
         response = self.client.post(
-            "/_matrix/client/r0/account/deactivate",
+            "/_matrix/client/v3/account/deactivate",
             auth=BearerAuth(access_token),
             json=body,
         )
