@@ -284,7 +284,7 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
     """
     List all accounts registered in the database.
 
-    DATABASE_URI should be the database URI to connect to (postgres:// or sqlite3://).
+    This includes both accounts and their respective profiles (display name and avatar).
     """
     config = http.read_config()
     if database_uri is None:
@@ -340,6 +340,12 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
 )
 @click.pass_obj
 def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
+    """
+    Lists all rooms registered in the database, both remote and local, including any aliases.
+
+    As Dendrite lacks the API endpoint for getting rooms, only limited room details are available from the
+    database: alias, room ID, and room version.
+    """
     config = http.read_config()
     if database_uri is None:
         database_uri = config.get("database_uri")
