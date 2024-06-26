@@ -5,12 +5,13 @@ import logging
 import secrets
 import sys
 import typing
-from urllib.parse import quote, urlparse
 from pathlib import Path
-from ._sql import SQLHandler
+from urllib.parse import quote, urlparse
 
 import httpx
 import toml
+
+from ._sql import SQLHandler
 
 try:
     import h2
@@ -374,6 +375,34 @@ class HTTPAPIManager:
             log.info("Done registering user %s", kwargs["username"])
             response.raise_for_status()
             return response.json()
+
+    def get_profile(self, user_id: str) -> dict:
+        """
+        Fetches information about a user, less than the whois function.
+
+        Docs:
+            1. https://spec.matrix.org/v1.11/client-server-api/#get_matrixclientv3profileuserid
+
+        :param user_id: The user ID to fetch information about.
+        :return: The user's information (see docs).
+        :raises: httpx.HTTPError - if the request failed.
+        """
+        log.info("Fetching the profile for user %s", user_id)
+        domain = user_id.split(":", 1)[1]
+        user_id = quote(user_id)
+        url = f"/_matrix/client/v3/profile/{user_id}"
+        if domain != self.client.base_url.host:
+            log.warning(
+                "User %s is not local to this server - will contact %r instead.",
+                user_id,
+                domain,
+            )
+            url = f"{self.resolve_delegation(domain)}{url}"
+
+        response = self.client.get(url)
+        log.info("Done fetching information about user %s", user_id)
+        response.raise_for_status()
+        return response.json()
 
     def whois(self, user_id: str) -> dict:
         """

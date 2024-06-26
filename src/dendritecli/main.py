@@ -263,9 +263,10 @@ def whois(http: api.HTTPAPIManager, user_id: str):
             _user = http.whois(user_id)
         except HTTPStatusError as e:
             if e.response.status_code == 401:
-                console.print("[red]Unauthorised. If you are looking up a remote user, you may not have permission.")
-                return
-            raise
+                console.print("[red]Unauthorised. Performing profile lookup instead.")
+                _user = http.get_profile(user_id)
+            else:
+                raise
     console.print(_user)
 
 
