@@ -10,6 +10,7 @@ import rich
 from rich.logging import RichHandler
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
+from httpx import HTTPStatusError
 
 from . import api
 
@@ -258,7 +259,13 @@ def whois(http: api.HTTPAPIManager, user_id: str):
         console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
         raise click.Abort
     with console.status("Fetching user information..."):
-        _user = http.whois(user_id)
+        try:
+            _user = http.whois(user_id)
+        except HTTPStatusError as e:
+            if e.response.status_code == 401:
+                console.print("[red]Unauthorised. If you are looking up a remote user, you may not have permission.")
+                return
+            raise
     console.print(_user)
 
 
