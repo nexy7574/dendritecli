@@ -5,7 +5,7 @@ import logging
 import secrets
 import sys
 import typing
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from pathlib import Path
 from ._sql import SQLHandler
 
@@ -80,6 +80,55 @@ class HTTPAPIManager:
         )
 
         self.fulltext_reindex = self.full_text_reindex = self.reindex_events
+
+    def resolve_delegation(self, domain: str) -> str:
+        """
+        Resolves delegation for a domain. Returns the URL to the server.
+        """
+        # This function follows client-server spec v1.11 - section 3.1, apart from the following:
+        # - FAIl_PROMPT is treated as FAIL_ERROR
+
+        log.info("Resolving delegation for %s", domain)
+        response = self.client.get(
+            f"https://{domain}/.well-known/matrix/client",
+            headers={"Accept": "application/json"},
+        )
+        if response.status_code == 404:
+            return "https://%s:443" + domain
+        if len(response.content) == 0 or response.status_code != 200:
+            log.error("Failed to resolve delegation for %s - invalid response", domain)
+            response.raise_for_status()
+
+        try:
+            data = response.json()
+            if "m.homeserver" not in data:
+                raise ValueError("Missing `m.homeserver` property in response.")
+            elif "base_url" not in data["m.homeserver"]:
+                raise ValueError("Missing `m.homeserver.base_url` property in response.")
+        except ValueError:
+            log.error("Failed to resolve delegation for %s - invalid JSON", domain)
+            raise
+
+        base_url = data["m.homeserver"]["base_url"]
+        if base_url.endswith("/"):
+            base_url = base_url[:-1]
+        parsed_url = urlparse(base_url)
+        if not parsed_url.netloc:
+            raise ValueError("Invalid URL in response.")
+        try:
+            response = self.client.get(f"{base_url}/_matrix/client/versions")
+            response.raise_for_status()
+            versions = response.json()
+            if "versions" not in versions:
+                raise ValueError("Missing `versions` property in response.")
+        except httpx.HTTPStatusError:
+            log.error("Failed to resolve delegation for %s - failed to validate homeserver", domain)
+            raise
+        except ValueError:
+            log.error("Failed to resolve delegation for %s - invalid response data", domain)
+            raise
+        log.info("Resolved delegation for %s to %s", domain, base_url)
+        return base_url
 
     @staticmethod
     def read_config() -> dict:
@@ -346,7 +395,7 @@ class HTTPAPIManager:
                 user_id,
                 domain,
             )
-            url = f"https://{domain}{url}"
+            url = f"https://{self.resolve_delegation(domain)}{url}"
 
         response = self.client.get(url)
         log.info("Done fetching information about user %s", user_id)
