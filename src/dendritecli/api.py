@@ -337,8 +337,18 @@ class HTTPAPIManager:
         :raises: httpx.HTTPError - if the request failed.
         """
         log.info("Fetching information about user %s", user_id)
+        domain = user_id.split(":", 1)[1]
         user_id = quote(user_id)
-        response = self.client.get(f"/_matrix/client/v3/admin/whois/{user_id}")
+        url = f"/_matrix/client/v3/admin/whois/{user_id}"
+        if domain != self.client.base_url.host:
+            log.warning(
+                "User %s is not local to this server - will contact %r instead.",
+                user_id,
+                domain,
+            )
+            url = f"https://{domain}{url}"
+
+        response = self.client.get(url)
         log.info("Done fetching information about user %s", user_id)
         response.raise_for_status()
         return response.json()
