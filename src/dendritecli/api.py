@@ -115,6 +115,8 @@ class HTTPAPIManager:
         parsed_url = urlparse(base_url)
         if not parsed_url.netloc:
             raise ValueError("Invalid URL in response.")
+        elif parsed_url.scheme != "https":
+            raise ValueError("URL must be HTTPS, got %r." % parsed_url.scheme)
         try:
             response = self.client.get(f"{base_url}/_matrix/client/versions")
             response.raise_for_status()
@@ -395,7 +397,7 @@ class HTTPAPIManager:
                 user_id,
                 domain,
             )
-            url = f"https://{self.resolve_delegation(domain)}{url}"
+            url = f"{self.resolve_delegation(domain)}{url}"
 
         response = self.client.get(url)
         log.info("Done fetching information about user %s", user_id)
