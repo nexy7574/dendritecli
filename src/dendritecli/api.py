@@ -76,7 +76,7 @@ class HTTPAPIManager:
             timeout=kwargs.pop("timeout", httpx.Timeout(connect=10, read=180, write=60, pool=10)),
             follow_redirects=True,
             max_redirects=10,
-            base_url=self.base_url
+            base_url=self.base_url,
         )
 
         self.fulltext_reindex = self.full_text_reindex = self.reindex_events
@@ -307,15 +307,15 @@ class HTTPAPIManager:
             admin = "admin" if kwargs["admin"] else "notadmin"
             kwargs.setdefault("displayname", kwargs["username"])
             kwargs["admin"] = admin
-            kwargs['nonce'] = nonce
+            kwargs["nonce"] = nonce
 
             mac.update(kwargs["nonce"].encode("utf-8"))
-            mac.update(b'\x00')
+            mac.update(b"\x00")
             mac.update(kwargs["username"].encode("utf-8"))
-            mac.update(b'\x00')
+            mac.update(b"\x00")
             mac.update(kwargs["password"].encode("utf-8"))
-            mac.update(b'\x00')
-            mac.update(b'notadmin' if not kwargs["admin"] else b'admin')
+            mac.update(b"\x00")
+            mac.update(b"notadmin" if not kwargs["admin"] else b"admin")
 
             mac = mac.hexdigest()
             log.info("Registering user %s", kwargs["username"])
@@ -381,7 +381,7 @@ class HTTPAPIManager:
         access_token = response.json()["access_token"]
         log.debug("Got access token %r for user %r.", access_token, user_id)
 
-        log.info("Beginning \"interactive\" deactivation of %s.", user_id)
+        log.info('Beginning "interactive" deactivation of %s.', user_id)
 
         initial_response = self.client.post(
             "/_matrix/client/v3/account/deactivate",
@@ -414,7 +414,7 @@ class HTTPAPIManager:
                 "type": "m.login.password",
                 "user": user_id,
             },
-            "erase": True
+            "erase": True,
         }
         log.info("Deactivating user (step 3): Deactivating user %s", user_id)
         response = self.client.post(

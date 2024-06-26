@@ -8,9 +8,7 @@ import psycopg
 from urllib.parse import urlparse, parse_qs
 
 
-__all__ = (
-    "SQLHandler",
-)
+__all__ = ("SQLHandler",)
 
 
 class SQLHandler:

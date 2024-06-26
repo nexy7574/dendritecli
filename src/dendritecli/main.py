@@ -2,6 +2,7 @@ import datetime
 import getpass
 import logging
 import pathlib
+import re
 import secrets
 
 import click
@@ -14,6 +15,10 @@ from . import api
 
 log = logging.getLogger("dendritecli.runtime")
 console = rich.get_console()
+user_identifier_regex = re.compile(
+    r"(?:@(?P<user_id_localpart>[a-z0-9\-_\.=]+):(?P<server_name>.+)){,255}",
+    re.IGNORECASE
+)
 
 
 @click.group()
@@ -35,7 +40,7 @@ console = rich.get_console()
     "-L",
     default="INFO",
     help="Log level",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]),
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
 )
 @click.option(
     "--access-token",
@@ -47,7 +52,7 @@ console = rich.get_console()
 def main(ctx: click.Context, server: str | None, config: pathlib.Path, log_level: str, access_token: str | None):
     """Manage the dendrite API from your cozy command line."""
     logging.basicConfig(
-        level=log_level,
+        level=log_level.upper(),
         format="%(message)s",
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True)],
@@ -87,7 +92,7 @@ def room(http: api.HTTPAPIManager, room_id: str):
         result = http.evacuate_room(room_id)
     console.print("[green]Evacuated room.")
     if len(result["affected"]) > 0:
-        console.print(f"[yellow]Affected users:")
+        console.print("[yellow]Affected users:")
         for user in result["affected"]:
             console.print(f"[yellow]\t{user}")
     else:
@@ -104,13 +109,16 @@ def user(http: api.HTTPAPIManager, user_id: str):
 
     USER_ID should be the fully qualified (@username:domain.tld) user ID to evacuate.
     """
+    if not user_identifier_regex.match(user_id):
+        console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
+        raise click.Abort
     if not Confirm.ask("This will remove the user from all local rooms. Are you sure?"):
         return
     with console.status("Evacuating user..."):
         result = http.evacuate_user(user_id)
     console.print("[green]Evacuated user.")
     if len(result["affected"]) > 0:
-        console.print(f"[yellow]Affected rooms:")
+        console.print("[yellow]Affected rooms:")
         for _room in result["affected"]:
             console.print(f"[yellow]\t{_room}")
     else:
@@ -133,6 +141,9 @@ def reset_password(http: api.HTTPAPIManager, logout_devices: bool, user_id: str)
 
     USER_ID should be the fully qualified (@username:domain.tld) user ID to reset the password of.
     """
+    if not user_identifier_regex.match(user_id):
+        console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
+        raise click.Abort
     if not Confirm.ask("This will reset the user's password. Are you sure?"):
         return
     new_password = Prompt.ask("New password (blank for random): ", default="", password=True)
@@ -163,6 +174,9 @@ def refresh_devices(http: api.HTTPAPIManager, user_id: str):
 
     USER_ID should be the fully qualified (@username:domain.tld) user ID to refresh the devices of.
     """
+    if not user_identifier_regex.match(user_id):
+        console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
+        raise click.Abort
     with console.status("Refreshing devices..."):
         http.refresh_devices(user_id)
     console.print("[green]Devices refreshed.")
@@ -227,7 +241,7 @@ def register(http: api.HTTPAPIManager, shared_secret: str, username: str, displa
             displayname=display_name,
             admin=admin,
         )
-    console.print(f"[green]Registered %s (%s)" % (username, response["user_id"]))
+    console.print("[green]Registered %s (%s)" % (username, response["user_id"]))
     console.print(response)
 
 
@@ -240,6 +254,9 @@ def whois(http: api.HTTPAPIManager, user_id: str):
 
     USER_ID should be the fully qualified (@username:domain.tld) user ID to fetch the information of.
     """
+    if not user_identifier_regex.match(user_id):
+        console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
+        raise click.Abort
     with console.status("Fetching user information..."):
         _user = http.whois(user_id)
     console.print(_user)
@@ -254,6 +271,10 @@ def deactivate(http: api.HTTPAPIManager, user_id: str):
 
     USER_ID should be the fully qualified (@username:domain.tld) user ID to deactivate.
     """
+    if not user_identifier_regex.match(user_id):
+        console.print("[red]Invalid user ID. user_id should be in the format @username:domain.tld.")
+        raise click.Abort
+
     if not Confirm.ask("This will deactivate the user. Are you sure?"):
         return
 
@@ -277,7 +298,7 @@ def deactivate(http: api.HTTPAPIManager, user_id: str):
     "--database",
     "-D",
     help="The database URI to connect to (postgres[ql]:// or sqlite[3]://)",
-    default=None
+    default=None,
 )
 @click.pass_obj
 def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
@@ -294,13 +315,7 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
         database_uri = Prompt.ask("Database URI (postgres:// or sqlite3://)")
 
     table = Table(
-        "localpart",
-        "display name",
-        "created at",
-        "appservice ID",
-        "is deactivated",
-        "account type",
-        "avatar URL"
+        "localpart", "display name", "created at", "appservice ID", "is deactivated", "account type", "avatar URL"
     )
     sql = api.SQLHandler(database_uri)
     accounts = list(sql.list_accounts())
@@ -308,21 +323,20 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
     accounts.sort(key=lambda x: x["created_ts"])
     for account in accounts:
         if account["created_ts"] is None:
-            user_created_at = '\u200b'
+            user_created_at = "\u200b"
         else:
             user_created_at = datetime.datetime.fromtimestamp(
-                account["created_ts"] / 1000,
-                datetime.timezone.utc
+                account["created_ts"] / 1000, datetime.timezone.utc
             ).strftime("%Y-%m-%d %H:%M:%S %Z")
         deactivated = account["is_deactivated"]
         table.add_row(
             account["localpart"],
             account["display_name"],
             user_created_at,
-            str(account["appservice_id"] or '\u200b'),
+            str(account["appservice_id"] or "\u200b"),
             "[%s]%s[/]" % ("green" if deactivated else "red", deactivated),
             str(account["account_type"]),
-            account["avatar_url"] or '\u200b'
+            account["avatar_url"] or "\u200b",
         )
     console.print(table)
     config["database_uri"] = database_uri
@@ -336,7 +350,7 @@ def list_accounts(http: api.HTTPAPIManager, database_uri: str | None):
     "--database",
     "-D",
     help="The database URI to connect to (postgres[ql]:// or sqlite[3]://)",
-    default=None
+    default=None,
 )
 @click.pass_obj
 def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
@@ -353,20 +367,12 @@ def list_rooms(http: api.HTTPAPIManager, database_uri: str | None):
         console.print("[yellow]No database URI provided.")
         database_uri = Prompt.ask("Database URI (postgres:// or sqlite3://)")
 
-    table = Table(
-        "Alias",
-        "Room ID",
-        "Version"
-    )
+    table = Table("Alias", "Room ID", "Version")
     sql = api.SQLHandler(database_uri)
     rooms = list(sql.list_rooms())
     log.debug("Found rooms: %r", rooms)
     for _room in rooms:
-        table.add_row(
-            _room["alias"] or '\u200b',
-            _room["room_id"],
-            str(_room["room_version"])
-        )
+        table.add_row(_room["alias"] or "\u200b", _room["room_id"], str(_room["room_version"]))
     console.print(table)
     config["database_uri"] = database_uri
     http.write_config(config)

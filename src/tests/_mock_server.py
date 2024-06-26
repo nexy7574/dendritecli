@@ -11,19 +11,21 @@ class PasswordResetBody(BaseModel):
     logout_devices: bool = False
 
 
-app = fastapi.FastAPI(
-    default_response_class=JSONResponse
-)
+app = fastapi.FastAPI(default_response_class=JSONResponse)
 app.state.users = {
     "@example:example.local": {
-        "rooms": ["!123456789abcdef:example.local",],
+        "rooms": [
+            "!123456789abcdef:example.local",
+        ],
         "password": "example.password",
         "access_token": "example.access_token",
     }
 }
 app.state.rooms = {
     "#example:example.local": {
-        "users": ["@example:example.local",],
+        "users": [
+            "@example:example.local",
+        ],
     }
 }
 
@@ -32,16 +34,20 @@ app.state.rooms = {
 def reset_state():
     app.state.users = {
         "@example:example.local": {
-            "rooms": ["#example:example.local", ],
-            "password": "example.password"
+            "rooms": [
+                "#example:example.local",
+            ],
+            "password": "example.password",
         }
     }
     app.state.rooms = {
         "#example:example.local": {
-            "users": ["@example:example.local", ],
+            "users": [
+                "@example:example.local",
+            ],
         }
     }
-    print('Reset app state:', app.state.users, app.state.rooms)
+    print("Reset app state:", app.state.users, app.state.rooms)
 
 
 @app.post("/_dendrite/admin/evacuateRoom/{room_id}")
@@ -113,29 +119,29 @@ async def send_server_notice(req: fastapi.Request):
     return {"event_id": "$" + secrets.token_urlsafe(16)}
 
 
-@app.get('/_synapse/admin/v1/register')
+@app.get("/_synapse/admin/v1/register")
 async def register__get():
-    return {'nonce': 'nonce'}
+    return {"nonce": "nonce"}
 
 
 @app.post("/_synapse/admin/v1/register")
 async def register(req: fastapi.Request):
     body = await req.json()
-    if body.get('nonce') != 'nonce' or body.get('mac') is None:
+    if body.get("nonce") != "nonce" or body.get("mac") is None:
         raise fastapi.HTTPException(status_code=400)
-    
+
     # Assume, for the purposes of the test, the body is correct.
     # This is a mock server, after all.
-    app.state.users[body['username']] = {
+    app.state.users[body["username"]] = {
         "rooms": [],
-        "password": body['password'],
-        "access_token": "example.access_token." + body['username'],
+        "password": body["password"],
+        "access_token": "example.access_token." + body["username"],
     }
     return {
-        "access_token": "example.access_token." + body['username'],
+        "access_token": "example.access_token." + body["username"],
         "home_server": "example.local",
-        "user_id": body['username'],
-        "device_id": "example.device_id." + body['username'],
+        "user_id": body["username"],
+        "device_id": "example.device_id." + body["username"],
     }
 
 
@@ -149,78 +155,78 @@ async def whois(user_id: str):
     }
 
 
-@app.post('/_matrix/client/v3/login')
+@app.post("/_matrix/client/v3/login")
 async def login(req: fastapi.Request):
     body = await req.json()
-    if body['type'] != 'm.login.password':
+    if body["type"] != "m.login.password":
         raise fastapi.HTTPException(status_code=400)
-    if body['identifier']['type'] != 'm.id.user':
+    if body["identifier"]["type"] != "m.id.user":
         raise fastapi.HTTPException(status_code=400)
-    if body['identifier']['user'] not in app.state.users:
+    if body["identifier"]["user"] not in app.state.users:
         raise fastapi.HTTPException(status_code=400)
-    if body['password'] != app.state.users[body['identifier']['user']]['password']:
+    if body["password"] != app.state.users[body["identifier"]["user"]]["password"]:
         raise fastapi.HTTPException(status_code=400)
     return {
-        "access_token": app.state.users[body['identifier']['user']]['access_token'],
+        "access_token": app.state.users[body["identifier"]["user"]]["access_token"],
         "home_server": "example.local",
-        "user_id": body['identifier']['user'],
-        "device_id": "example.device_id." + body['identifier']['user'],
+        "user_id": body["identifier"]["user"],
+        "device_id": "example.device_id." + body["identifier"]["user"],
     }
 
 
-@app.post('/_matrix/client/v3/account/deactivate')
+@app.post("/_matrix/client/v3/account/deactivate")
 async def account_deactivate(req: fastapi.Request):
     try:
         body = await req.json()
     except json.JSONDecodeError:
         return JSONResponse(
             {
-                'flows': [
+                "flows": [
                     {
-                        'stages': ['m.login.password'],
+                        "stages": ["m.login.password"],
                     }
                 ],
-                'session': 'session_id'
+                "session": "session_id",
             },
-            401
+            401,
         )
 
-    if not body.get('auth'):
+    if not body.get("auth"):
         return JSONResponse(
             {
-                'flows': [
+                "flows": [
                     {
-                        'stages': ['m.login.password'],
+                        "stages": ["m.login.password"],
                     }
                 ],
-                'session': 'session_id'
+                "session": "session_id",
             },
-            401
+            401,
         )
 
-    if body['auth'].get('session') != 'session_id':
+    if body["auth"].get("session") != "session_id":
         return JSONResponse(
             {
-                'flows': [
+                "flows": [
                     {
-                        'stages': ['m.login.password'],
+                        "stages": ["m.login.password"],
                     }
                 ],
-                'session': 'session_id'
+                "session": "session_id",
             },
-            401
+            401,
         )
 
-    if body['auth'].get('type') != 'm.login.password':
+    if body["auth"].get("type") != "m.login.password":
         return JSONResponse(
             {
-                'flows': [
+                "flows": [
                     {
-                        'stages': ['m.login.password'],
+                        "stages": ["m.login.password"],
                     }
                 ],
-                'session': 'session_id'
+                "session": "session_id",
             },
-            401
+            401,
         )
     return {}
