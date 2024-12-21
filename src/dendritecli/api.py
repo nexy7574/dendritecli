@@ -59,8 +59,6 @@ class HTTPAPIManager:
 
     def __init__(self, access_token: str, client: typing.Optional[httpx.Client] = None, **kwargs):
         config = self.read_config()
-        if config.get("proxies"):
-            kwargs.setdefault("proxies", config["proxies"])
         if config.get("timeout"):
             kwargs.setdefault("timeout", config["timeout"])
         if config.get("headers"):
@@ -73,7 +71,6 @@ class HTTPAPIManager:
                 "User-Agent": __USER_AGENT__,
             },
             http2=h2 is not None,
-            proxies=kwargs.pop("proxies", None),
             timeout=kwargs.pop("timeout", httpx.Timeout(connect=10, read=180, write=60, pool=10)),
             follow_redirects=True,
             max_redirects=10,
