@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "dendritecli"
 description = "Manage the Dendrite API from your command line!"
 readme = {file = "README.md", content-type = "text/markdown"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file = "LICENSE" }
 authors = [
     {name = "Nexus", email = "pip@nexy7574.co.uk"}
@@ -23,7 +23,7 @@ dev = [
 
 [project.urls]
 Source = "https://github.com/nexy7574/dendritecli"
-"Chat" = "https://matrix.to/#/@nex:nexy7574.co.uk"
+"Chat" = "https://matrix.to/#/#ontopic:nexy74574.co.uk"
 Funding = "https://ko-fi.com/nexy7574"
 
 [project.scripts]
