@@ -205,7 +205,8 @@ class HTTPAPIManager:
         if self.read_config().get("override-password-length-check", False) is False:
             if len(new_password.encode("utf-8")) > 72:
                 raise ValueError(
-                    "Passwords cannot be more than 72 bytes. See: https://github.com/matrix-org/dendrite/issues/3012"
+                    "Passwords cannot be more than 72 bytes. See: "
+                    "https://github.com/matrix-org/dendrite/issues/3012#issuecomment-1552875393"
                 )
         else:
             log.debug("Password length check is disabled.")
@@ -271,7 +272,7 @@ class HTTPAPIManager:
         """
         log.info("Requesting dendrite to purge room %s", room_id)
         room_id = quote(room_id)
-        response = self.client.post(f"/_dendrite/admin/purgeRoom/{room_id}")
+        response = self.client.post(f"/_dendrite/admin/purgeRoom/{room_id}", timeout=None)
         log.info("Finished purging room %s", room_id)
         response.raise_for_status()
         return response.json()
@@ -437,7 +438,7 @@ class HTTPAPIManager:
         Docs:
             - None. There isn't an official dendrite API to deactivate a user, so this function does the following:
                 1. Reset the user's password.
-                2. Users the user's new password to get an access token
+                2. Uses the user's new password to get an access token
                 3. Uses the access token to deactivate the user.
 
             - Please make sure that the user was evacuated beforehand.
