@@ -17,7 +17,7 @@ from . import api
 log = logging.getLogger("dendritecli.runtime")
 console = rich.get_console()
 user_identifier_regex = re.compile(
-    r"(?:@(?P<user_id_localpart>[a-z0-9\-_\.=]+):(?P<server_name>.+)){,255}",
+    r"(?:@(?P<user_id_localpart>[a-z0-9\-_.=]+):(?P<server_name>.+)){,255}",
     re.IGNORECASE
 )
 

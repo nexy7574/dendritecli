@@ -24,25 +24,6 @@ with the addition of some patches and workarounds for missing things, such as:
 * Listing rooms
 * Deactivating accounts
 
-### As a library
-
-Dendritecli also supports being used as a library, with a simple API.
-
-If you wanted to do something with a web interface, for example, you could do the following:
-
-```python
-...
-import json
-from dendritecli.api import HTTPAPIManager as DendriteManager
-
-
-def evacuate_user(user: str):
-    manager = DendriteManager("access_token")
-    # ^ defaults to http://localhost:8008.
-    affected_rooms = manager.evacuate_user(user)
-    return json.dumps(affected_rooms)
-```
-
 ## Installing
 
 You will need python 3.10 or later. You will also need `pipx` (`pip install pipx && python3 -m pipx ensurepath`)
